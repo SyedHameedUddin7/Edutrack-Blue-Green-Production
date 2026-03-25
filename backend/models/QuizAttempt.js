@@ -1,49 +1,59 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const quizAttemptSchema = new mongoose.Schema({
-  quiz: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Quiz',
-    required: true
+const QuizAttempt = sequelize.define('QuizAttempt', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
   },
-  student: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Student',
-    required: true
+  quizId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    field: 'quiz_id',
+    references: { model: 'quizzes', key: 'id' }
   },
-  questions: [{
-    question: String,
-    options: [String],
-    correctAnswer: Number,
-    studentAnswer: Number,
-    explanation: String
-  }],
+  studentId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    field: 'student_id',
+    references: { model: 'students', key: 'id' }
+  },
+  questions: {
+    type: DataTypes.JSONB,
+    defaultValue: []
+  },
   answers: {
-    type: Map,
-    of: Number,
-    default: {}
+    type: DataTypes.JSONB,
+    defaultValue: {}
   },
   score: {
-    type: Number,
-    default: 0
+    type: DataTypes.FLOAT,
+    defaultValue: 0
   },
   startedAt: {
-    type: Date,
-    default: Date.now
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   },
   completedAt: {
-    type: Date
+    type: DataTypes.DATE
   },
   timeTaken: {
-    type: Number // in seconds
+    type: DataTypes.INTEGER
   },
   isCompleted: {
-    type: Boolean,
-    default: false
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
-}, { timestamps: true });
+}, {
+  tableName: 'quiz_attempts',
+  timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['quiz_id', 'student_id']
+    }
+  ]
+});
 
-// Ensure one attempt per student per quiz
-quizAttemptSchema.index({ quiz: 1, student: 1 }, { unique: true });
-
-module.exports = mongoose.model('QuizAttempt', quizAttemptSchema);
+module.exports = QuizAttempt;

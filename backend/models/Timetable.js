@@ -1,71 +1,48 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const timetableSchema = new mongoose.Schema({
-  classSection: {
-    type: String,
-    required: true
+const Timetable = sequelize.define('Timetable', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
   },
-  subjectAllocation: [{
-    faculty: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Faculty',
-      required: true
-    },
-    facultyName: String,
-    subject: String,
-    periodsPerWeek: {
-      type: Number,
-      required: true,
-      min: 1
-    }
-  }],
-  schedule: [{
-    day: {
-      type: String,
-      required: true,
-      enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    },
-    periods: [{
-      periodNumber: {
-        type: Number,
-        required: true
-      },
-      startTime: {
-        type: String,
-        required: true
-      },
-      endTime: {
-        type: String,
-        required: true
-      },
-      subject: {
-        type: String,
-        required: true
-      },
-      faculty: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Faculty',
-        required: true
-      },
-      facultyName: String
-    }]
-  }],
+  classSection: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  subjectAllocation: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: []
+  },
+  schedule: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: []
+  },
   academicYear: {
-    type: String,
-    default: '2024-2025'
+    type: DataTypes.STRING,
+    defaultValue: '2024-2025'
   },
   isActive: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
   createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin',
-    required: true
+    type: DataTypes.UUID,
+    allowNull: false,
+    field: 'created_by',
+    references: { model: 'admins', key: 'id' }
   }
-}, { timestamps: true });
+}, {
+  tableName: 'timetables',
+  timestamps: true,
+  indexes: [
+    {
+      fields: ['classSection', 'academicYear', 'isActive']
+    }
+  ]
+});
 
-// Ensure one active timetable per class per academic year
-timetableSchema.index({ classSection: 1, academicYear: 1, isActive: 1 });
-
-module.exports = mongoose.model('Timetable', timetableSchema);
+module.exports = Timetable;

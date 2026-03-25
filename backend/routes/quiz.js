@@ -1,14 +1,11 @@
 const express = require('express');
-const Quiz = require('../models/Quiz');
-const QuizAttempt = require('../models/QuizAttempt');
-const Student = require('../models/Student');
-const Faculty = require('../models/Faculty');
+const { Op } = require('sequelize');
+const { Quiz, QuizAttempt, Student, Faculty, Admin } = require('../models');
 const { auth, isAdmin } = require('../middleware/auth');
 const axios = require('axios');
 
 const router = express.Router();
 
-// Shuffle array utility
 const shuffleArray = (array) => {
   const newArray = [...array];
   for (let i = newArray.length - 1; i > 0; i--) {
@@ -18,7 +15,6 @@ const shuffleArray = (array) => {
   return newArray;
 };
 
-// Generate questions using Groq AI
 const generateQuestionsWithAI = async (subject, chapter) => {
   const prompt = `You are an expert teacher creating exam questions for Class 10 SSC Telangana Board students.
 
@@ -41,28 +37,23 @@ Use this exact format:
     "question": "What is the value of sin 90 degrees?",
     "options": ["0", "1", "√3/2", "1/2"],
     "correctAnswer": 1,
-    "explanation": "sin 90° = 1, which is the maximum value of the sine function. This can be verified using the unit circle."
+    "explanation": "sin 90° = 1, which is the maximum value of the sine function."
   }
 ]
 
 Requirements:
 - Exactly 15 questions
 - Each question must have 4 distinct options
-- correctAnswer is the index (0, 1, 2, or 3) - VERIFY THIS IS CORRECT
+- correctAnswer is the index (0, 1, 2, or 3)
 - Mix easy, medium, and hard difficulty
-- Include numerical problems where applicable
-- Questions must be relevant to SSC Telangana Board syllabus
-- Ensure all answers are factually correct and verified`;
+- Questions must be relevant to SSC Telangana Board syllabus`;
 
   try {
     const response = await axios.post(
       'https://api.groq.com/openai/v1/chat/completions',
       {
         model: 'llama-3.3-70b-versatile',
-        messages: [{
-          role: 'user',
-          content: prompt
-        }],
+        messages: [{ role: 'user', content: prompt }],
         max_tokens: 6000,
         temperature: 0.3
       },
@@ -75,116 +66,63 @@ Requirements:
     );
 
     const content = response.data.choices[0].message.content;
-    console.log('AI Response received, parsing...');
-    
-    let jsonMatch = content.match(/\[[\s\S]*\]/);
-    
-    if (!jsonMatch) {
-      jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonMatch) {
-        jsonMatch[0] = jsonMatch[1];
-      }
-    }
-    
-    if (!jsonMatch) {
-      jsonMatch = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
-    }
-    
-    if (!jsonMatch) {
-      console.error('Could not parse AI response:', content);
-      throw new Error('Invalid response format from AI');
-    }
+    let jsonMatch = content.match(/\[[\s\S]*\]/) || content.match(/```json\s*([\s\S]*?)\s*```/);
+    if (jsonMatch && jsonMatch[1]) jsonMatch[0] = jsonMatch[1];
+    if (!jsonMatch) throw new Error('Invalid response format from AI');
 
-    const generatedQuestions = JSON.parse(jsonMatch[0]);
-    
-    if (!Array.isArray(generatedQuestions) || generatedQuestions.length === 0) {
-      throw new Error('No questions were generated');
-    }
-    
-    console.log(`Successfully generated ${generatedQuestions.length} questions`);
-    
-    return generatedQuestions.map(q => ({
+    const generated = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(generated) || generated.length === 0) throw new Error('No questions generated');
+
+    return generated.map(q => ({
       question: q.question,
       options: q.options,
       correctAnswer: q.correctAnswer,
       explanation: q.explanation || 'No explanation provided'
     }));
-
   } catch (error) {
-    console.error('Error generating questions:', error.message);
     throw new Error(`Failed to generate questions: ${error.message}`);
   }
 };
 
-// Admin: Create quiz with AI-generated questions
+// Admin: Create quiz
 router.post('/create', auth, isAdmin, async (req, res) => {
   try {
     const { title, subject, chapter, classSection, duration, numberOfQuestions } = req.body;
-
-    console.log('Creating quiz with data:', { title, subject, chapter, classSection });
-
-    // Validate input
     if (!title || !subject || !chapter || !classSection) {
-      return res.status(400).json({ 
-        message: 'Please provide title, subject, chapter, and classSection' 
-      });
+      return res.status(400).json({ message: 'Please provide title, subject, chapter, and classSection' });
     }
-
-    // Check for Groq API key
     if (!process.env.GROQ_API_KEY) {
-      return res.status(500).json({
-        message: 'Groq API key not configured. Please add GROQ_API_KEY to .env file'
-      });
+      return res.status(500).json({ message: 'Groq API key not configured' });
     }
 
-    // Generate questions using AI
-    console.log(`Generating questions for ${subject} - ${chapter}...`);
     const questionPool = await generateQuestionsWithAI(subject, chapter);
-
-    const quiz = new Quiz({
-      title,
-      subject,
-      chapter,
-      classSection,
+    const quiz = await Quiz.create({
+      title, subject, chapter, classSection,
       duration: duration || 1800,
       numberOfQuestions: numberOfQuestions || 10,
       questionPool,
       createdBy: req.user.id
     });
 
-    await quiz.save();
-    console.log('Quiz saved successfully:', quiz._id);
-
     res.status(201).json({
       message: 'Quiz created successfully with AI-generated questions',
-      quiz: {
-        _id: quiz._id,
-        title: quiz.title,
-        subject: quiz.subject,
-        chapter: quiz.chapter,
-        classSection: quiz.classSection,
-        questionPoolSize: quiz.questionPool.length
-      }
+      quiz: { _id: quiz.id, title: quiz.title, subject: quiz.subject, chapter: quiz.chapter, classSection: quiz.classSection, questionPoolSize: quiz.questionPool.length }
     });
-
   } catch (error) {
     console.error('Create quiz error:', error);
-    res.status(500).json({ 
-      message: 'Failed to create quiz', 
-      error: error.message 
-    });
+    res.status(500).json({ message: 'Failed to create quiz', error: error.message });
   }
 });
 
 // Admin: Get all quizzes
 router.get('/all', auth, isAdmin, async (req, res) => {
   try {
-    const quizzes = await Quiz.find()
-      .populate('createdBy', 'username')
-      .sort({ createdAt: -1 });
-
-    console.log(`Fetched ${quizzes.length} quizzes for admin`);
-    res.json(quizzes);
+    const quizzes = await Quiz.findAll({
+      include: [{ model: Admin, as: 'creator', attributes: ['username'] }],
+      order: [['createdAt', 'DESC']]
+    });
+    const response = quizzes.map(q => ({ ...q.toJSON(), _id: q.id, createdBy: q.creator }));
+    res.json(response);
   } catch (error) {
     console.error('Error fetching all quizzes:', error);
     res.status(500).json({ message: 'Server error' });
@@ -195,17 +133,10 @@ router.get('/all', auth, isAdmin, async (req, res) => {
 router.delete('/:quizId', auth, isAdmin, async (req, res) => {
   try {
     const { quizId } = req.params;
-
-    const quiz = await Quiz.findByIdAndDelete(quizId);
-
-    if (!quiz) {
-      return res.status(404).json({ message: 'Quiz not found' });
-    }
-
-    // Also delete all attempts for this quiz
-    await QuizAttempt.deleteMany({ quiz: quizId });
-
-    console.log(`Quiz ${quizId} deleted successfully`);
+    const quiz = await Quiz.findByPk(quizId);
+    if (!quiz) return res.status(404).json({ message: 'Quiz not found' });
+    await QuizAttempt.destroy({ where: { quizId } });
+    await quiz.destroy();
     res.json({ message: 'Quiz deleted successfully' });
   } catch (error) {
     console.error('Error deleting quiz:', error);
@@ -213,167 +144,86 @@ router.delete('/:quizId', auth, isAdmin, async (req, res) => {
   }
 });
 
-// Student: Get available quizzes for their class
+// Student: Get available quizzes
 router.get('/available', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'student') {
-      return res.status(403).json({ message: 'Access denied. Students only.' });
-    }
+    if (req.user.role !== 'student') return res.status(403).json({ message: 'Access denied. Students only.' });
 
-    const student = await Student.findById(req.user.id);
-    
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
+    const student = await Student.findByPk(req.user.id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    console.log('Student classSection:', student.classSection);
+    const quizzes = await Quiz.findAll({
+      where: { classSection: student.classSection, isActive: true },
+      attributes: { exclude: ['questionPool'] }
+    });
 
-    // Find all active quizzes for this student's class
-    const quizzes = await Quiz.find({
-      classSection: student.classSection,
-      isActive: true
-    }).select('-questionPool'); // Don't send question pool to frontend
+    const attempts = await QuizAttempt.findAll({
+      where: { studentId: req.user.id, isCompleted: true },
+      attributes: ['quizId']
+    });
+    const attemptedQuizIds = attempts.map(a => a.quizId);
 
-    console.log(`Found ${quizzes.length} quizzes for classSection: ${student.classSection}`);
-
-    // Check which quizzes student has already attempted
-    const attempts = await QuizAttempt.find({
-      student: req.user.id,
-      isCompleted: true
-    }).select('quiz');
-
-    const attemptedQuizIds = attempts.map(a => a.quiz.toString());
-    console.log(`Student has attempted ${attemptedQuizIds.length} quizzes`);
-
-    const quizzesWithStatus = quizzes.map(quiz => ({
-      _id: quiz._id,
-      title: quiz.title,
-      subject: quiz.subject,
-      chapter: quiz.chapter,
-      classSection: quiz.classSection,
-      duration: quiz.duration,
-      numberOfQuestions: quiz.numberOfQuestions,
-      createdAt: quiz.createdAt,
-      attempted: attemptedQuizIds.includes(quiz._id.toString())
+    const response = quizzes.map(quiz => ({
+      _id: quiz.id, title: quiz.title, subject: quiz.subject, chapter: quiz.chapter,
+      classSection: quiz.classSection, duration: quiz.duration, numberOfQuestions: quiz.numberOfQuestions,
+      createdAt: quiz.createdAt, attempted: attemptedQuizIds.includes(quiz.id)
     }));
 
-    res.json(quizzesWithStatus);
-
+    res.json(response);
   } catch (error) {
     console.error('Error fetching quizzes:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Student: Start quiz attempt
+// Student: Start quiz
 router.post('/start/:quizId', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'student') {
-      return res.status(403).json({ message: 'Access denied. Students only.' });
-    }
-
+    if (req.user.role !== 'student') return res.status(403).json({ message: 'Access denied. Students only.' });
     const { quizId } = req.params;
-    console.log(`Student ${req.user.id} attempting to start quiz ${quizId}`);
 
-    // Check if student has already attempted this quiz
-    const existingAttempt = await QuizAttempt.findOne({
-      quiz: quizId,
-      student: req.user.id
-    });
+    const existingAttempt = await QuizAttempt.findOne({ where: { quizId, studentId: req.user.id } });
+    if (existingAttempt) return res.status(400).json({ message: 'You have already attempted this quiz' });
 
-    if (existingAttempt) {
-      console.log('Student has already attempted this quiz');
-      return res.status(400).json({ 
-        message: 'You have already attempted this quiz' 
-      });
-    }
+    const quiz = await Quiz.findByPk(quizId);
+    if (!quiz) return res.status(404).json({ message: 'Quiz not found' });
+    if (!quiz.isActive) return res.status(400).json({ message: 'Quiz is not active' });
 
-    const quiz = await Quiz.findById(quizId);
-
-    if (!quiz) {
-      console.log('Quiz not found');
-      return res.status(404).json({ message: 'Quiz not found' });
-    }
-
-    if (!quiz.isActive) {
-      console.log('Quiz is not active');
-      return res.status(400).json({ message: 'Quiz is not active' });
-    }
-
-    console.log(`Quiz has ${quiz.questionPool.length} questions in pool`);
-
-    // Shuffle and select random questions for this student
     const shuffledPool = shuffleArray(quiz.questionPool);
     const selectedQuestions = shuffledPool.slice(0, quiz.numberOfQuestions);
 
-    console.log(`Selected ${selectedQuestions.length} questions for student`);
-
-    // Create quiz attempt with student-specific questions
-    const attempt = new QuizAttempt({
-      quiz: quizId,
-      student: req.user.id,
-      questions: selectedQuestions.map(q => ({
-        question: q.question,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        explanation: q.explanation
-      }))
+    const attempt = await QuizAttempt.create({
+      quizId, studentId: req.user.id,
+      questions: selectedQuestions.map(q => ({ question: q.question, options: q.options, correctAnswer: q.correctAnswer, explanation: q.explanation }))
     });
 
-    await attempt.save();
-    console.log('Quiz attempt created:', attempt._id);
-
-    // Return questions without correct answers
-    const questionsForStudent = selectedQuestions.map(q => ({
-      question: q.question,
-      options: q.options
-    }));
-
-    res.json({
-      attemptId: attempt._id,
-      questions: questionsForStudent,
-      duration: quiz.duration,
-      title: quiz.title,
-      subject: quiz.subject,
-      chapter: quiz.chapter
-    });
-
+    const questionsForStudent = selectedQuestions.map(q => ({ question: q.question, options: q.options }));
+    res.json({ attemptId: attempt.id, questions: questionsForStudent, duration: quiz.duration, title: quiz.title, subject: quiz.subject, chapter: quiz.chapter });
   } catch (error) {
     console.error('Error starting quiz:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Student: Submit answer for a question
+// Student: Submit answer
 router.post('/answer/:attemptId', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'student') {
-      return res.status(403).json({ message: 'Access denied. Students only.' });
-    }
-
+    if (req.user.role !== 'student') return res.status(403).json({ message: 'Access denied. Students only.' });
     const { attemptId } = req.params;
     const { questionIndex, answer } = req.body;
 
-    const attempt = await QuizAttempt.findById(attemptId);
+    const attempt = await QuizAttempt.findByPk(attemptId);
+    if (!attempt) return res.status(404).json({ message: 'Quiz attempt not found' });
+    if (attempt.studentId !== req.user.id) return res.status(403).json({ message: 'Access denied' });
+    if (attempt.isCompleted) return res.status(400).json({ message: 'Quiz already completed' });
 
-    if (!attempt) {
-      return res.status(404).json({ message: 'Quiz attempt not found' });
-    }
-
-    if (attempt.student.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    if (attempt.isCompleted) {
-      return res.status(400).json({ message: 'Quiz already completed' });
-    }
-
-    // Store the answer
-    attempt.answers.set(questionIndex.toString(), answer);
+    const answers = attempt.answers || {};
+    answers[questionIndex.toString()] = answer;
+    attempt.answers = answers;
+    attempt.changed('answers', true);
     await attempt.save();
 
     res.json({ message: 'Answer saved' });
-
   } catch (error) {
     console.error('Error saving answer:', error);
     res.status(500).json({ message: 'Server error' });
@@ -383,59 +233,35 @@ router.post('/answer/:attemptId', auth, async (req, res) => {
 // Student: Submit quiz
 router.post('/submit/:attemptId', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'student') {
-      return res.status(403).json({ message: 'Access denied. Students only.' });
-    }
-
+    if (req.user.role !== 'student') return res.status(403).json({ message: 'Access denied. Students only.' });
     const { attemptId } = req.params;
 
-    const attempt = await QuizAttempt.findById(attemptId);
+    const attempt = await QuizAttempt.findByPk(attemptId, {
+      include: [{ model: Quiz, as: 'quiz', attributes: ['title', 'subject', 'chapter'] }]
+    });
+    if (!attempt) return res.status(404).json({ message: 'Quiz attempt not found' });
+    if (attempt.studentId !== req.user.id) return res.status(403).json({ message: 'Access denied' });
+    if (attempt.isCompleted) return res.status(400).json({ message: 'Quiz already completed' });
 
-    if (!attempt) {
-      return res.status(404).json({ message: 'Quiz attempt not found' });
-    }
-
-    if (attempt.student.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    if (attempt.isCompleted) {
-      return res.status(400).json({ message: 'Quiz already completed' });
-    }
-
-    // Calculate score
     let correctAnswers = 0;
     attempt.questions.forEach((question, index) => {
-      const studentAnswer = attempt.answers.get(index.toString());
-      if (studentAnswer === question.correctAnswer) {
-        correctAnswers++;
-      }
+      const studentAnswer = attempt.answers[index.toString()];
+      if (studentAnswer === question.correctAnswer) correctAnswers++;
     });
 
     const score = (correctAnswers / attempt.questions.length) * 100;
-    const timeTaken = Math.floor((Date.now() - attempt.startedAt) / 1000);
+    const timeTaken = Math.floor((Date.now() - new Date(attempt.startedAt).getTime()) / 1000);
 
     attempt.score = score;
     attempt.completedAt = new Date();
     attempt.timeTaken = timeTaken;
     attempt.isCompleted = true;
-
     await attempt.save();
 
-    // Populate quiz details for response
-    await attempt.populate('quiz', 'title subject chapter');
-
-    console.log(`Quiz submitted - Score: ${score}%, Time: ${timeTaken}s`);
-
     res.json({
-      message: 'Quiz submitted successfully',
-      score: score.toFixed(1),
-      correctAnswers,
-      totalQuestions: attempt.questions.length,
-      timeTaken,
-      quiz: attempt.quiz
+      message: 'Quiz submitted successfully', score: score.toFixed(1),
+      correctAnswers, totalQuestions: attempt.questions.length, timeTaken, quiz: attempt.quiz
     });
-
   } catch (error) {
     console.error('Error submitting quiz:', error);
     res.status(500).json({ message: 'Server error' });
@@ -446,46 +272,27 @@ router.post('/submit/:attemptId', auth, async (req, res) => {
 router.get('/results/:attemptId', auth, async (req, res) => {
   try {
     const { attemptId } = req.params;
+    const attempt = await QuizAttempt.findByPk(attemptId, {
+      include: [
+        { model: Quiz, as: 'quiz', attributes: ['title', 'subject', 'chapter'] },
+        { model: Student, as: 'student', attributes: ['name', 'rollNumber'] }
+      ]
+    });
+    if (!attempt) return res.status(404).json({ message: 'Quiz attempt not found' });
+    if (req.user.role === 'student' && attempt.studentId !== req.user.id) return res.status(403).json({ message: 'Access denied' });
+    if (!attempt.isCompleted) return res.status(400).json({ message: 'Quiz not completed yet' });
 
-    const attempt = await QuizAttempt.findById(attemptId)
-      .populate('quiz', 'title subject chapter')
-      .populate('student', 'name rollNumber');
-
-    if (!attempt) {
-      return res.status(404).json({ message: 'Quiz attempt not found' });
-    }
-
-    // Students can only see their own results, admins can see all
-    if (req.user.role === 'student' && attempt.student._id.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    if (!attempt.isCompleted) {
-      return res.status(400).json({ message: 'Quiz not completed yet' });
-    }
-
-    // Prepare detailed results
     const results = attempt.questions.map((question, index) => {
-      const studentAnswer = attempt.answers.get(index.toString());
+      const studentAnswer = attempt.answers[index.toString()];
       return {
-        question: question.question,
-        options: question.options,
-        correctAnswer: question.correctAnswer,
+        question: question.question, options: question.options, correctAnswer: question.correctAnswer,
         studentAnswer: studentAnswer !== undefined ? studentAnswer : null,
-        isCorrect: studentAnswer === question.correctAnswer,
-        explanation: question.explanation
+        isCorrect: studentAnswer === question.correctAnswer, explanation: question.explanation
       };
     });
 
-    res.json({
-      quiz: attempt.quiz,
-      student: attempt.student,
-      score: attempt.score,
-      timeTaken: attempt.timeTaken,
-      completedAt: attempt.completedAt,
-      results
-    });
-
+    const studentResponse = attempt.student ? { ...attempt.student.toJSON(), _id: attempt.student.id } : null;
+    res.json({ quiz: attempt.quiz, student: studentResponse, score: attempt.score, timeTaken: attempt.timeTaken, completedAt: attempt.completedAt, results });
   } catch (error) {
     console.error('Error fetching results:', error);
     res.status(500).json({ message: 'Server error' });
@@ -495,126 +302,88 @@ router.get('/results/:attemptId', auth, async (req, res) => {
 // Student: Get my quiz history
 router.get('/my-attempts', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'student') {
-      return res.status(403).json({ message: 'Access denied. Students only.' });
-    }
-
-    const attempts = await QuizAttempt.find({
-      student: req.user.id,
-      isCompleted: true
-    })
-      .populate('quiz', 'title subject chapter')
-      .sort({ completedAt: -1 });
-
-    console.log(`Fetched ${attempts.length} quiz attempts for student ${req.user.id}`);
-    res.json(attempts);
-
+    if (req.user.role !== 'student') return res.status(403).json({ message: 'Access denied. Students only.' });
+    const attempts = await QuizAttempt.findAll({
+      where: { studentId: req.user.id, isCompleted: true },
+      include: [{ model: Quiz, as: 'quiz', attributes: ['title', 'subject', 'chapter'] }],
+      order: [['completedAt', 'DESC']]
+    });
+    const response = attempts.map(a => ({ ...a.toJSON(), _id: a.id }));
+    res.json(response);
   } catch (error) {
     console.error('Error fetching attempts:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Admin: Get all quiz attempts with statistics
+// Admin: Get all quiz attempts
 router.get('/attempts/all', auth, isAdmin, async (req, res) => {
   try {
-    const attempts = await QuizAttempt.find({ isCompleted: true })
-      .populate('student', 'name rollNumber classSection')
-      .populate('quiz', 'title subject chapter')
-      .sort({ completedAt: -1 });
-
-    console.log(`Fetched ${attempts.length} total quiz attempts`);
-    res.json(attempts);
-
+    const attempts = await QuizAttempt.findAll({
+      where: { isCompleted: true },
+      include: [
+        { model: Student, as: 'student', attributes: ['name', 'rollNumber', 'classSection'] },
+        { model: Quiz, as: 'quiz', attributes: ['title', 'subject', 'chapter'] }
+      ],
+      order: [['completedAt', 'DESC']]
+    });
+    const response = attempts.map(a => ({ ...a.toJSON(), _id: a.id }));
+    res.json(response);
   } catch (error) {
     console.error('Error fetching attempts:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-
-// Faculty: Get quiz results for my subject and classes
+// Faculty: Get quiz results
 router.get('/faculty-results', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'faculty') {
-      return res.status(403).json({ message: 'Access denied. Faculty only.' });
-    }
+    if (req.user.role !== 'faculty') return res.status(403).json({ message: 'Access denied. Faculty only.' });
 
-    const faculty = await Faculty.findById(req.user.id);
-    
-    if (!faculty) {
-      return res.status(404).json({ message: 'Faculty not found' });
-    }
+    const faculty = await Faculty.findByPk(req.user.id);
+    if (!faculty) return res.status(404).json({ message: 'Faculty not found' });
 
-    console.log(`Fetching quiz results for faculty: ${faculty.name}, Subject: ${faculty.subject}`);
-
-    // Get all quizzes for this faculty's subject and classes
-    const quizzes = await Quiz.find({
-      subject: faculty.subject,
-      classSection: { $in: faculty.classes },
-      isActive: true
-    }).select('_id title subject chapter classSection');
+    const quizzes = await Quiz.findAll({
+      where: { subject: faculty.subject, classSection: { [Op.in]: faculty.classes }, isActive: true },
+      attributes: ['id', 'title', 'subject', 'chapter', 'classSection']
+    });
 
     if (quizzes.length === 0) {
-      return res.json({
-        faculty: {
-          name: faculty.name,
-          subject: faculty.subject,
-          classes: faculty.classes
-        },
-        quizzes: [],
-        attempts: []
-      });
+      return res.json({ faculty: { name: faculty.name, subject: faculty.subject, classes: faculty.classes }, quizzes: [], attempts: [] });
     }
 
-    const quizIds = quizzes.map(q => q._id);
+    const quizIds = quizzes.map(q => q.id);
+    const attempts = await QuizAttempt.findAll({
+      where: { quizId: { [Op.in]: quizIds }, isCompleted: true },
+      include: [
+        { model: Student, as: 'student', attributes: ['name', 'rollNumber', 'classSection'] },
+        { model: Quiz, as: 'quiz', attributes: ['title', 'subject', 'chapter', 'classSection'] }
+      ],
+      order: [['completedAt', 'DESC']]
+    });
 
-    // Get all completed attempts for these quizzes
-    const attempts = await QuizAttempt.find({
-      quiz: { $in: quizIds },
-      isCompleted: true
-    })
-      .populate('student', 'name rollNumber classSection')
-      .populate('quiz', 'title subject chapter classSection')
-      .sort({ completedAt: -1 });
-
-    // Calculate statistics
     const statistics = {
-      totalAttempts: attempts.length,
-      totalQuizzes: quizzes.length,
-      averageScore: attempts.length > 0 
-        ? (attempts.reduce((sum, a) => sum + a.score, 0) / attempts.length).toFixed(2)
-        : 0,
+      totalAttempts: attempts.length, totalQuizzes: quizzes.length,
+      averageScore: attempts.length > 0 ? (attempts.reduce((sum, a) => sum + a.score, 0) / attempts.length).toFixed(2) : 0,
       byClass: {}
     };
 
-    // Group by class
     faculty.classes.forEach(cls => {
-      const classAttempts = attempts.filter(a => a.student.classSection === cls);
+      const classAttempts = attempts.filter(a => a.student && a.student.classSection === cls);
       statistics.byClass[cls] = {
         totalAttempts: classAttempts.length,
-        averageScore: classAttempts.length > 0
-          ? (classAttempts.reduce((sum, a) => sum + a.score, 0) / classAttempts.length).toFixed(2)
-          : 0
+        averageScore: classAttempts.length > 0 ? (classAttempts.reduce((sum, a) => sum + a.score, 0) / classAttempts.length).toFixed(2) : 0
       };
     });
 
-    console.log(`Found ${attempts.length} quiz attempts across ${quizzes.length} quizzes`);
+    const quizzesResponse = quizzes.map(q => ({ ...q.toJSON(), _id: q.id }));
+    const attemptsResponse = attempts.map(a => ({ ...a.toJSON(), _id: a.id }));
 
-    res.json({
-      faculty: {
-        name: faculty.name,
-        subject: faculty.subject,
-        classes: faculty.classes
-      },
-      quizzes,
-      attempts,
-      statistics
-    });
-
+    res.json({ faculty: { name: faculty.name, subject: faculty.subject, classes: faculty.classes }, quizzes: quizzesResponse, attempts: attemptsResponse, statistics });
   } catch (error) {
     console.error('Error fetching faculty quiz results:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 module.exports = router;

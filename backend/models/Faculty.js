@@ -1,45 +1,56 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 const bcrypt = require('bcryptjs');
 
-const facultySchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true
+const Faculty = sequelize.define('Faculty', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
   },
-  classes: [{
-    type: String,
-    required: true
-  }],
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  classes: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: []
+  },
   subject: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   username: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
   },
   password: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   role: {
-    type: String,
-    default: 'faculty'
+    type: DataTypes.STRING,
+    defaultValue: 'faculty'
   }
-}, { timestamps: true });
-
-// Hash password before saving
-facultySchema.pre('save', async function() {
-  if (!this.isModified('password')) return;
-  this.password = await bcrypt.hash(this.password, 10);
+}, {
+  tableName: 'faculties',
+  timestamps: true,
+  hooks: {
+    beforeCreate: async (faculty) => {
+      faculty.password = await bcrypt.hash(faculty.password, 10);
+    },
+    beforeUpdate: async (faculty) => {
+      if (faculty.changed('password')) {
+        faculty.password = await bcrypt.hash(faculty.password, 10);
+      }
+    }
+  }
 });
 
-// Method to compare password
-facultySchema.methods.comparePassword = async function(candidatePassword) {
+Faculty.prototype.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-module.exports = mongoose.model('Faculty', facultySchema);
+module.exports = Faculty;

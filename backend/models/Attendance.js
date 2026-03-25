@@ -1,32 +1,45 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const attendanceSchema = new mongoose.Schema({
-  student: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Student',
-    required: true
+const Attendance = sequelize.define('Attendance', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
   },
-  faculty: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Faculty',
-    required: true
+  studentId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    field: 'student_id',
+    references: { model: 'students', key: 'id' }
+  },
+  facultyId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    field: 'faculty_id',
+    references: { model: 'faculties', key: 'id' }
   },
   classSection: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   date: {
-    type: Date,
-    required: true
+    type: DataTypes.DATEONLY,
+    allowNull: false
   },
   status: {
-    type: String,
-    enum: ['present', 'absent'],
-    required: true
+    type: DataTypes.ENUM('present', 'absent'),
+    allowNull: false
   }
-}, { timestamps: true });
+}, {
+  tableName: 'attendances',
+  timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['student_id', 'date']
+    }
+  ]
+});
 
-// Create compound index to prevent duplicate entries for same student on same date
-attendanceSchema.index({ student: 1, date: 1 }, { unique: true });
-
-module.exports = mongoose.model('Attendance', attendanceSchema);
+module.exports = Attendance;

@@ -1,35 +1,48 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 const bcrypt = require('bcryptjs');
 
-const systemConfigSchema = new mongoose.Schema({
+const SystemConfig = sequelize.define('SystemConfig', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   configKey: {
-    type: String,
-    required: true,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true
   },
   configValue: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   isEncrypted: {
-    type: Boolean,
-    default: false
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
-}, { timestamps: true });
-
-// Encrypt sensitive values before saving
-systemConfigSchema.pre('save', async function() {
-  if (this.isModified('configValue') && this.isEncrypted) {
-    this.configValue = await bcrypt.hash(this.configValue, 10);
+}, {
+  tableName: 'system_configs',
+  timestamps: true,
+  hooks: {
+    beforeCreate: async (config) => {
+      if (config.isEncrypted) {
+        config.configValue = await bcrypt.hash(config.configValue, 10);
+      }
+    },
+    beforeUpdate: async (config) => {
+      if (config.changed('configValue') && config.isEncrypted) {
+        config.configValue = await bcrypt.hash(config.configValue, 10);
+      }
+    }
   }
 });
 
-// Method to verify encrypted value
-systemConfigSchema.methods.verifyValue = async function(value) {
+SystemConfig.prototype.verifyValue = async function(value) {
   if (this.isEncrypted) {
     return await bcrypt.compare(value, this.configValue);
   }
   return this.configValue === value;
 };
 
-module.exports = mongoose.model('SystemConfig', systemConfigSchema);
+module.exports = SystemConfig;

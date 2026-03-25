@@ -1,7 +1,6 @@
 const express = require('express');
-const Attendance = require('../models/Attendance');
-const Student = require('../models/Student');
-const Faculty = require('../models/Faculty');
+const { Op } = require('sequelize');
+const { Attendance, Student, Faculty } = require('../models');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -11,16 +10,19 @@ router.get('/students/:classSection', auth, async (req, res) => {
   try {
     const { classSection } = req.params;
 
-    // Verify user is faculty
     if (req.user.role !== 'faculty') {
       return res.status(403).json({ message: 'Access denied. Faculty only.' });
     }
 
-    const students = await Student.find({ 
-      classSection: classSection
-    }).select('-password').sort({ rollNumber: 1 });
+    const students = await Student.findAll({
+      where: { classSection },
+      attributes: { exclude: ['password'] },
+      order: [['rollNumber', 'ASC']]
+    });
 
-    res.json(students);
+    // Add _id for frontend compatibility
+    const response = students.map(s => ({ ...s.toJSON(), _id: s.id }));
+    res.json(response);
   } catch (error) {
     console.error('Error fetching students:', error);
     res.status(500).json({ message: 'Server error' });
@@ -32,105 +34,96 @@ router.post('/mark', auth, async (req, res) => {
   try {
     const { attendance, classSection, date } = req.body;
 
-    // Verify user is faculty
     if (req.user.role !== 'faculty') {
       return res.status(403).json({ message: 'Access denied. Faculty only.' });
     }
 
-    // Parse date and set to start of day
     const attendanceDate = new Date(date);
     attendanceDate.setHours(0, 0, 0, 0);
+    const dateOnly = attendanceDate.toISOString().split('T')[0];
 
     // Delete existing attendance for this classSection and date
-    await Attendance.deleteMany({
-      classSection: classSection,
-      date: attendanceDate
+    await Attendance.destroy({
+      where: { classSection, date: dateOnly }
     });
 
     // Create attendance records
-    const attendanceRecords = attendance.map(record => ({
-      student: record.studentId,
-      faculty: req.user.id,
-      classSection: classSection,
-      date: attendanceDate,
+    const records = attendance.map(record => ({
+      studentId: record.studentId,
+      facultyId: req.user.id,
+      classSection,
+      date: dateOnly,
       status: record.status
     }));
 
-    await Attendance.insertMany(attendanceRecords);
+    await Attendance.bulkCreate(records);
 
-    res.json({ 
-      message: 'Attendance marked successfully',
-      count: attendanceRecords.length 
-    });
-
+    res.json({ message: 'Attendance marked successfully', count: records.length });
   } catch (error) {
     console.error('Error marking attendance:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get attendance for a student (for student)
+// Get attendance for a student
 router.get('/student/:studentId', auth, async (req, res) => {
   try {
     const { studentId } = req.params;
 
-    // Verify user is the student or admin
     if (req.user.role === 'student' && req.user.id !== studentId) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const attendanceRecords = await Attendance.find({ student: studentId })
-      .populate('faculty', 'name subject')
-      .sort({ date: -1 });
+    const attendanceRecords = await Attendance.findAll({
+      where: { studentId },
+      include: [{ model: Faculty, as: 'faculty', attributes: ['name', 'subject'] }],
+      order: [['date', 'DESC']]
+    });
 
-    // Calculate statistics
-    const totalDays = attendanceRecords.length;
-    const presentDays = attendanceRecords.filter(record => record.status === 'present').length;
+    const records = attendanceRecords.map(r => ({
+      ...r.toJSON(),
+      _id: r.id,
+      student: r.studentId
+    }));
+
+    const totalDays = records.length;
+    const presentDays = records.filter(r => r.status === 'present').length;
     const absentDays = totalDays - presentDays;
     const attendancePercentage = totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(2) : 0;
 
     res.json({
-      records: attendanceRecords,
-      statistics: {
-        totalDays,
-        presentDays,
-        absentDays,
-        attendancePercentage
-      }
+      records,
+      statistics: { totalDays, presentDays, absentDays, attendancePercentage }
     });
-
   } catch (error) {
     console.error('Error fetching attendance:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Get attendance by date range (for student)
+// Get attendance by date range
 router.get('/student/:studentId/range', auth, async (req, res) => {
   try {
     const { studentId } = req.params;
     const { startDate, endDate } = req.query;
 
-    // Verify user is the student or admin
     if (req.user.role === 'student' && req.user.id !== studentId) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const query = { student: studentId };
-    
+    const where = { studentId };
     if (startDate && endDate) {
-      query.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
+      where.date = { [Op.between]: [startDate, endDate] };
     }
 
-    const attendanceRecords = await Attendance.find(query)
-      .populate('faculty', 'name subject')
-      .sort({ date: -1 });
+    const attendanceRecords = await Attendance.findAll({
+      where,
+      include: [{ model: Faculty, as: 'faculty', attributes: ['name', 'subject'] }],
+      order: [['date', 'DESC']]
+    });
 
-    res.json(attendanceRecords);
-
+    const response = attendanceRecords.map(r => ({ ...r.toJSON(), _id: r.id }));
+    res.json(response);
   } catch (error) {
     console.error('Error fetching attendance:', error);
     res.status(500).json({ message: 'Server error' });
@@ -142,20 +135,19 @@ router.get('/class/:classSection/history', auth, async (req, res) => {
   try {
     const { classSection } = req.params;
 
-    // Verify user is faculty
     if (req.user.role !== 'faculty') {
       return res.status(403).json({ message: 'Access denied. Faculty only.' });
     }
 
-    const attendanceRecords = await Attendance.find({ 
-      classSection: classSection
-    })
-      .populate('student', 'name rollNumber')
-      .sort({ date: -1 })
-      .limit(100);
+    const attendanceRecords = await Attendance.findAll({
+      where: { classSection },
+      include: [{ model: Student, as: 'student', attributes: ['name', 'rollNumber'] }],
+      order: [['date', 'DESC']],
+      limit: 100
+    });
 
-    res.json(attendanceRecords);
-
+    const response = attendanceRecords.map(r => ({ ...r.toJSON(), _id: r.id }));
+    res.json(response);
   } catch (error) {
     console.error('Error fetching attendance history:', error);
     res.status(500).json({ message: 'Server error' });

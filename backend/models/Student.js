@@ -1,62 +1,71 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 const bcrypt = require('bcryptjs');
 
-const studentSchema = new mongoose.Schema({
+const Student = sequelize.define('Student', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   name: {
-    type: String,
-    required: true,
-    trim: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   rollNumber: {
-    type: String,
-    required: true,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true
   },
   class: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   section: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   classSection: {
-    type: String
+    type: DataTypes.STRING
   },
   username: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
   },
   password: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   role: {
-    type: String,
-    default: 'student'
+    type: DataTypes.STRING,
+    defaultValue: 'student'
   },
   profilePicture: {
-    type: String,
-    default: null
+    type: DataTypes.STRING,
+    defaultValue: null
   }
-}, { timestamps: true });
-
-// Single pre-save hook to handle both classSection and password
-studentSchema.pre('save', async function() {
-  // Set classSection
-  this.classSection = this.class + this.section;
-  
-  // Hash password if modified
-  if (this.isModified('password')) {
-    this.password = await bcrypt.hash(this.password, 10);
+}, {
+  tableName: 'students',
+  timestamps: true,
+  hooks: {
+    beforeCreate: async (student) => {
+      student.classSection = student.class + student.section;
+      student.password = await bcrypt.hash(student.password, 10);
+    },
+    beforeUpdate: async (student) => {
+      if (student.changed('class') || student.changed('section')) {
+        student.classSection = student.class + student.section;
+      }
+      if (student.changed('password')) {
+        student.password = await bcrypt.hash(student.password, 10);
+      }
+    }
   }
 });
 
-// Method to compare password
-studentSchema.methods.comparePassword = async function(candidatePassword) {
+Student.prototype.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-module.exports = mongoose.model('Student', studentSchema);
+module.exports = Student;
