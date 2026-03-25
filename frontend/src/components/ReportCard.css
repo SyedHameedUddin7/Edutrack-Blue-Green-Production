@@ -1,0 +1,356 @@
+/* Report Card Container */
+.report-card-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.report-card-controls {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.button-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+/* Report Card */
+.report-card {
+  background: white;
+  padding: 40px;
+  border: 2px solid #333;
+  font-family: Arial, sans-serif;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Header */
+.report-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 3px solid #333;
+  padding-bottom: 15px;
+  margin-bottom: 20px;
+}
+
+.school-logo {
+  font-size: 48px;
+}
+
+.school-info {
+  text-align: center;
+  flex: 1;
+}
+
+.school-info h1 {
+  color: #d32f2f;
+  font-size: 28px;
+  margin: 0;
+  font-weight: bold;
+}
+
+.school-info p {
+  margin: 5px 0;
+  font-size: 12px;
+  color: #666;
+}
+
+.school-info h2 {
+  margin: 10px 0 0 0;
+  font-size: 18px;
+  color: #333;
+}
+
+/* Student Info Section */
+.student-info-section {
+  margin-bottom: 20px;
+}
+
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+
+.info-table td {
+  padding: 8px;
+  border: 1px solid #333;
+  font-size: 14px;
+}
+
+.info-table td:nth-child(odd) {
+  background: #f5f5f5;
+  width: 25%;
+}
+
+/* Marks Table */
+.marks-section {
+  margin-bottom: 20px;
+}
+
+.marks-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 2px solid #333;
+}
+
+.marks-table th {
+  background: #f5f5f5;
+  border: 1px solid #333;
+  padding: 10px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.marks-table td {
+  border: 1px solid #333;
+  padding: 8px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.marks-table td:first-child {
+  text-align: left;
+  padding-left: 15px;
+}
+
+.total-row {
+  background: #fff3cd;
+  font-weight: bold;
+}
+
+.grade-row {
+  background: #d4edda;
+  font-weight: bold;
+}
+
+/* Extra Curricular */
+.extra-section {
+  margin-bottom: 20px;
+}
+
+.extra-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.extra-table td {
+  border: 1px solid #333;
+  padding: 8px;
+  font-size: 13px;
+}
+
+.extra-table td:first-child {
+  width: 30%;
+  background: #f5f5f5;
+  font-weight: bold;
+}
+
+/* Descriptive Section */
+.descriptive-section {
+  border: 2px solid #333;
+  padding: 15px;
+  margin-bottom: 20px;
+  min-height: 100px;
+}
+
+.descriptive-section h4 {
+  margin: 0 0 10px 0;
+  color: #d32f2f;
+  font-size: 14px;
+}
+
+.descriptive-section p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Attendance Section */
+.attendance-section {
+  margin-bottom: 20px;
+}
+
+.attendance-section h4 {
+  margin: 0 0 10px 0;
+  color: #d32f2f;
+  font-size: 16px;
+}
+
+.attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 2px solid #333;
+}
+
+.attendance-table th,
+.attendance-table td {
+  border: 1px solid #333;
+  padding: 8px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.attendance-table th {
+  background: #f5f5f5;
+  font-weight: bold;
+}
+
+/* Signature Section */
+.signature-section {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 2px solid #333;
+}
+
+.signature-box {
+  text-align: center;
+  width: 30%;
+}
+
+.signature-box p {
+  margin: 0 0 30px 0;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.signature-line {
+  border-bottom: 1px solid #333;
+  margin: 0 auto;
+  width: 80%;
+}
+
+/* Grades Entry Styles */
+.grades-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.grades-form {
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.student-info-card {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 25px;
+  border-left: 4px solid #667eea;
+}
+
+.student-info-card h4 {
+  margin: 0 0 10px 0;
+  color: #333;
+}
+
+.student-info-card p {
+  margin: 5px 0;
+  color: #666;
+}
+
+.subjects-table-container {
+  margin-bottom: 25px;
+  overflow-x: auto;
+}
+
+.grades-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+.grades-table th {
+  background: #667eea;
+  color: white;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.grades-table td {
+  padding: 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.grades-table tr:hover {
+  background: #f8f9fa;
+}
+
+.small-input {
+  width: 100px;
+  padding: 8px;
+}
+
+.extra-curricular-section {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.extra-curricular-section h4 {
+  margin: 0 0 15px 0;
+  color: #667eea;
+}
+
+/* Print Styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .report-card-container {
+    padding: 0;
+  }
+
+  .report-card {
+    border: 2px solid #000;
+    box-shadow: none;
+    page-break-after: always;
+  }
+
+  body {
+    background: white;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .report-card {
+    padding: 20px;
+    font-size: 12px;
+  }
+
+  .school-info h1 {
+    font-size: 20px;
+  }
+
+  .signature-section {
+    flex-direction: column;
+    gap: 30px;
+  }
+
+  .signature-box {
+    width: 100%;
+  }
+
+  .form-row {
+    flex-direction: column;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+}

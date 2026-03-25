@@ -1,0 +1,906 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "School Management System API",
+    "version": "1.0.0",
+    "description": "A comprehensive MERN stack API for managing school operations including authentication, attendance, grades, quizzes, and timetables",
+    "contact": {
+      "name": "API Support",
+      "email": "support@schoolmanagement.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api",
+      "description": "Development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "User authentication endpoints"
+    },
+    {
+      "name": "Admin",
+      "description": "Admin operations for managing faculty and students"
+    },
+    {
+      "name": "User",
+      "description": "User profile operations"
+    },
+    {
+      "name": "Attendance",
+      "description": "Attendance management"
+    },
+    {
+      "name": "Grades",
+      "description": "Grade management and report cards"
+    },
+    {
+      "name": "Quizzes",
+      "description": "AI-powered quiz system"
+    },
+    {
+      "name": "Timetable",
+      "description": "Timetable generation and management"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "User login",
+        "description": "Authenticate user (admin, faculty, or student) and receive JWT token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password", "role"],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "admin"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "admin123"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": ["admin", "faculty", "student"],
+                    "example": "admin"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/admin/create-faculty": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Create faculty member",
+        "description": "Create a new faculty member (Admin only)",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "classes", "subject", "username", "password"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "John Doe"
+                  },
+                  "classes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": ["10A", "10B", "11A"]
+                  },
+                  "subject": {
+                    "type": "string",
+                    "example": "Mathematics"
+                  },
+                  "username": {
+                    "type": "string",
+                    "example": "john.faculty"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "password123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Faculty created successfully"
+          },
+          "400": {
+            "description": "Faculty already exists"
+          },
+          "403": {
+            "description": "Access denied"
+          }
+        }
+      }
+    },
+    "/admin/create-student": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Create student",
+        "description": "Create a new student (Admin only)",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "rollNumber", "class", "section", "username", "password"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "Jane Smith"
+                  },
+                  "rollNumber": {
+                    "type": "string",
+                    "example": "2024001"
+                  },
+                  "class": {
+                    "type": "string",
+                    "example": "10"
+                  },
+                  "section": {
+                    "type": "string",
+                    "example": "A"
+                  },
+                  "username": {
+                    "type": "string",
+                    "example": "jane.student"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "password123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Student created successfully"
+          },
+          "400": {
+            "description": "Student already exists"
+          },
+          "403": {
+            "description": "Access denied"
+          }
+        }
+      }
+    },
+    "/admin/faculties": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get all faculties",
+        "description": "Retrieve all faculty members (Admin only)",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "List of faculties"
+          },
+          "403": {
+            "description": "Access denied"
+          }
+        }
+      }
+    },
+    "/admin/students": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get all students",
+        "description": "Retrieve all students (Admin only)",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "List of students"
+          },
+          "403": {
+            "description": "Access denied"
+          }
+        }
+      }
+    },
+    "/admin/stats": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get statistics",
+        "description": "Get total count of faculties and students (Admin only)",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "Statistics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalFaculty": {
+                      "type": "integer"
+                    },
+                    "totalStudents": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/profile": {
+      "get": {
+        "tags": ["User"],
+        "summary": "Get current user profile",
+        "description": "Get authenticated user's profile information",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "User profile retrieved successfully"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/attendance/students/{classSection}": {
+      "get": {
+        "tags": ["Attendance"],
+        "summary": "Get students by class section",
+        "description": "Get all students in a specific class section (Faculty only)",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "classSection",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "10A"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of students"
+          },
+          "403": {
+            "description": "Access denied"
+          }
+        }
+      }
+    },
+    "/attendance/mark": {
+      "post": {
+        "tags": ["Attendance"],
+        "summary": "Mark attendance",
+        "description": "Mark attendance for students (Faculty only)",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["attendance", "classSection", "date"],
+                "properties": {
+                  "attendance": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "studentId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["present", "absent"]
+                        }
+                      }
+                    }
+                  },
+                  "classSection": {
+                    "type": "string",
+                    "example": "10A"
+                  },
+                  "date": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2024-12-12"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Attendance marked successfully"
+          },
+          "403": {
+            "description": "Access denied"
+          }
+        }
+      }
+    },
+    "/attendance/student/{studentId}": {
+      "get": {
+        "tags": ["Attendance"],
+        "summary": "Get student attendance",
+        "description": "Get attendance records and statistics for a student",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "studentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attendance data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "records": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AttendanceRecord"
+                      }
+                    },
+                    "statistics": {
+                      "$ref": "#/components/schemas/AttendanceStatistics"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/grades/submit": {
+      "post": {
+        "tags": ["Grades"],
+        "summary": "Submit grades",
+        "description": "Submit or update grades for a student (Faculty only)",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["studentId", "classSection", "term", "academicYear", "subjects"],
+                "properties": {
+                  "studentId": {
+                    "type": "string"
+                  },
+                  "classSection": {
+                    "type": "string",
+                    "example": "10A"
+                  },
+                  "term": {
+                    "type": "string",
+                    "enum": ["Term 1", "Term 2", "Final"],
+                    "example": "Term 1"
+                  },
+                  "academicYear": {
+                    "type": "string",
+                    "example": "2024-2025"
+                  },
+                  "subjects": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "marks": {
+                          "type": "number"
+                        },
+                        "grade": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "extraCurricular": {
+                    "type": "object"
+                  },
+                  "descriptiveIndicators": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Grades submitted successfully"
+          },
+          "403": {
+            "description": "Access denied"
+          }
+        }
+      }
+    },
+    "/grades/report-card/{studentId}": {
+      "get": {
+        "tags": ["Grades"],
+        "summary": "Get report card",
+        "description": "Get comprehensive report card with grades and attendance",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "studentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "term",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "academicYear",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report card retrieved successfully"
+          }
+        }
+      }
+    },
+    "/quiz/create": {
+      "post": {
+        "tags": ["Quizzes"],
+        "summary": "Create AI-powered quiz",
+        "description": "Create a quiz with AI-generated questions using Groq API (Admin only)",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "subject", "chapter", "classSection"],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "example": "Mathematics Chapter 1 Quiz"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "example": "Mathematics"
+                  },
+                  "chapter": {
+                    "type": "string",
+                    "example": "Trigonometry"
+                  },
+                  "classSection": {
+                    "type": "string",
+                    "example": "10A"
+                  },
+                  "duration": {
+                    "type": "integer",
+                    "description": "Duration in seconds",
+                    "example": 1800
+                  },
+                  "numberOfQuestions": {
+                    "type": "integer",
+                    "example": 10
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Quiz created successfully"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "500": {
+            "description": "Failed to generate questions"
+          }
+        }
+      }
+    },
+    "/quiz/available": {
+      "get": {
+        "tags": ["Quizzes"],
+        "summary": "Get available quizzes",
+        "description": "Get all available quizzes for student's class",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "List of available quizzes"
+          },
+          "403": {
+            "description": "Access denied - Students only"
+          }
+        }
+      }
+    },
+    "/quiz/start/{quizId}": {
+      "post": {
+        "tags": ["Quizzes"],
+        "summary": "Start quiz attempt",
+        "description": "Start a new quiz attempt (Student only)",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "quizId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quiz started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "attemptId": {
+                      "type": "string"
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "duration": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Already attempted or quiz not active"
+          }
+        }
+      }
+    },
+    "/quiz/submit/{attemptId}": {
+      "post": {
+        "tags": ["Quizzes"],
+        "summary": "Submit quiz",
+        "description": "Submit completed quiz (Student only)",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quiz submitted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "score": {
+                      "type": "number"
+                    },
+                    "correctAnswers": {
+                      "type": "integer"
+                    },
+                    "totalQuestions": {
+                      "type": "integer"
+                    },
+                    "timeTaken": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quiz/results/{attemptId}": {
+      "get": {
+        "tags": ["Quizzes"],
+        "summary": "Get quiz results",
+        "description": "Get detailed results for a completed quiz",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "attemptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quiz results retrieved successfully"
+          },
+          "400": {
+            "description": "Quiz not completed yet"
+          }
+        }
+      }
+    },
+    "/timetable/generate": {
+      "post": {
+        "tags": ["Timetable"],
+        "summary": "Generate timetable",
+        "description": "Generate timetable with custom subject allocation (Admin only)",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["classSection", "subjectAllocation"],
+                "properties": {
+                  "classSection": {
+                    "type": "string",
+                    "example": "10A"
+                  },
+                  "subjectAllocation": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "faculty": {
+                          "type": "string"
+                        },
+                        "facultyName": {
+                          "type": "string"
+                        },
+                        "subject": {
+                          "type": "string"
+                        },
+                        "periodsPerWeek": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "academicYear": {
+                    "type": "string",
+                    "example": "2024-2025"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Timetable generated successfully"
+          },
+          "400": {
+            "description": "Invalid input or timetable already exists"
+          },
+          "403": {
+            "description": "Access denied"
+          }
+        }
+      }
+    },
+    "/timetable/my-timetable": {
+      "get": {
+        "tags": ["Timetable"],
+        "summary": "Get student timetable",
+        "description": "Get timetable for student's class (Student only)",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "Timetable retrieved successfully"
+          },
+          "404": {
+            "description": "Timetable not available"
+          }
+        }
+      }
+    },
+    "/timetable/faculty-schedule": {
+      "get": {
+        "tags": ["Timetable"],
+        "summary": "Get faculty schedule",
+        "description": "Get schedule for faculty member (Faculty only)",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "Schedule retrieved successfully"
+          }
+        }
+      }
+    },
+    "/timetable/{timetableId}": {
+      "delete": {
+        "tags": ["Timetable"],
+        "summary": "Delete timetable",
+        "description": "Delete a timetable (Admin only)",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "timetableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Timetable deleted successfully"
+          },
+          "404": {
+            "description": "Timetable not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "faculty", "student"]
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "AttendanceRecord": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "student": {
+            "type": "string"
+          },
+          "faculty": {
+            "type": "object"
+          },
+          "classSection": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["present", "absent"]
+          }
+        }
+      },
+      "AttendanceStatistics": {
+        "type": "object",
+        "properties": {
+          "totalDays": {
+            "type": "integer"
+          },
+          "presentDays": {
+            "type": "integer"
+          },
+          "absentDays": {
+            "type": "integer"
+          },
+          "attendancePercentage": {
+            "type": "string"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
